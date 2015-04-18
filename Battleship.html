@@ -1,0 +1,32 @@
+<head>
+  <title>Battleship</title>
+</head>
+
+<body>
+	<h1>Battleship</h1>
+	{{> loginButtons}}
+	{{> players}}	
+</body>
+
+<template name="players">
+	<!-- Only display below information to logged in users -->
+	{{#if currentUser}}
+		{{#if gameBegun}}
+			<p>Game in progress</p>
+		{{else}}
+			<button id="join_game">Join Game</button>
+			<p>Waiting for players to join...</p>
+		{{/if}}
+	
+		<!-- Display a list of players where the player whose turn it is is highlighted -->
+		<ul>
+			{{#each players}}
+				{{> player}}
+			{{/each}}
+		</ul>
+    {{/if}}
+</template>
+
+<template name="player">
+	<li class="{{#if isTurn}}active-player{{/if}}">{{displayName}}</li>
+</template>
