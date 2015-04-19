@@ -5,7 +5,8 @@
 <body>
 	<h1>Battleship</h1>
 	{{> loginButtons}}
-	{{> players}}	
+	{{> players}}
+	{{> fireShot}}	
 </body>
 
 <template name="players">
@@ -18,6 +19,8 @@
 			<p>Waiting for players to join...</p>
 		{{/if}}
 	
+		<button id="reset">Reset</button>
+	
 		<!-- Display a list of players where the player whose turn it is is highlighted -->
 		<ul>
 			{{#each players}}
@@ -28,5 +31,13 @@
 </template>
 
 <template name="player">
-	<li class="{{#if isTurn}}active-player{{/if}}">{{displayName}}</li>
+	<li class="{{#if isTurn}}active-player{{/if}}">
+		{{displayName}}
+	</li>
+</template>
+
+<template name="fireShot">
+{{#if isTurn}}
+	<button id="fire_shot">Fire Shot</button>
+{{/if}}
 </template>

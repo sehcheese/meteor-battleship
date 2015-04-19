@@ -23,6 +23,26 @@ if (Meteor.isClient) {
 	Template.players.events({
 		'click #join_game': function() {
 			Meteor.call("addPlayer");
+		},
+		'click #reset': function() {
+			Meteor.call("reset");
+		},
+	});
+	
+	Template.fireShot.helpers({
+		isTurn: function() {
+			var isTurn = Players.findOne({ player: Meteor.userId() });
+			if(isTurn == null) {
+				return false;
+			} else {
+				return isTurn.isTurn;
+			}
+		}
+	});
+	
+	Template.fireShot.events({
+		'click #fire_shot': function() {
+			Meteor.call("fireShot");
 		}
 	});
 	
@@ -58,6 +78,8 @@ var playerNumber = 0;
 // Flag indicating whether a player has been added in the last time interval, referenced in periodicStartGameCheck
 var playerAdded = false;
 
+var activePlayerNumber;
+
 // Methods called from the client side, but run on the server side for security
 Meteor.methods({
 	// Add a player
@@ -83,11 +105,50 @@ Meteor.methods({
 					if(!playerAdded || playerNumber > 5) { // Player was not added in time interval since last player was added or the max number of players has been reached; start the game.
 						// Give the first turn to the first player who joined
 						Players.update({playerNumber: 0}, {$set: { isTurn: true }});
+						activePlayerNumber = 0;
 						
+						// Indicate that the game has started
 						Game.update({field: "gameStarted"}, {$set: { value: true }});
+						
+						// Start the turn cycle
+						turnCycle();
 					}
 				}, 10000);
 			}
 		}
+	},
+	reset: function() {
+		Players.remove({});
+		
+		Game.remove({});
+		
+		Game.insert({
+			field: "gameStarted",
+			value: false
+		});
+		
+		playerNumber = 0;
+		playerAdded = false;
+	},
+	fireShot: function() {
+		// Fire shot and do game stuff
+		// TODO add code
+		
+		// Advance to next turn
+		
+		// Set isTurn to false for player who just fired
+		Players.update({playerNumber: activePlayerNumber}, {$set: { isTurn: false }});
+		
+		// Set isTurn to true for next player in sequence
+		if(activePlayerNumber == playerNumber - 1) { // Reached last player in sequence; loop to start
+			activePlayerNumber = 0;
+		} else {
+			activePlayerNumber++;
+		}
+		Players.update({playerNumber: activePlayerNumber}, {$set: { isTurn: true }});
 	}
 });
+
+function turnCycle() {
+	//console.log("here");
+}
