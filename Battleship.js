@@ -6,20 +6,34 @@ if (Meteor.isClient) {
 	Meteor.subscribe("players");
 	Meteor.subscribe("game");
 	
-	// Provides values to the players template
-	Template.players.helpers({
-		// Return all the players
-		players: function () {
-			return Players.find({});
-		},
+	Template.joinGame.helpers({
 		// Return if the game is started or not
 		gameBegun: function() {
 			return Game.findOne({field: "gameStarted"}).value;
 		}
 	});
 	
+	Template.statusBar.helpers({
+		// Return the status of the game
+		status: function() {
+			return Game.findOne({field: "status"}).value;
+		},
+		cssClass: function() {
+			console.log(Game.findOne({field: "status"}));
+			return Game.findOne({field: "status"}).cssClass;
+		}
+	});
+	
+	// Provides values to the players template
+	Template.players.helpers({
+		// Return all the players
+		players: function () {
+			return Players.find({});
+		}
+	});
+	
 	// Handles events from within the players template
-	Template.players.events({
+	Template.joinGame.events({
 		'click #join_game': function() {
 			Meteor.call("addPlayer");
 		},
@@ -117,6 +131,8 @@ var activePlayerNumber;
 
 var shotsFired = false;
 
+var initialized = false;
+
 // Methods called from the client side, but run on the server side for security
 Meteor.methods({
 	// Add a player
@@ -130,6 +146,10 @@ Meteor.methods({
 		
 		playerNumber++;
 		playerAdded = true;
+		
+		if(Meteor.isClient) {
+			$("#join_game").prop("disabled",true);
+		}
 		
 		// Player added, should we start the game?
 		// There must be at least two players.
@@ -151,6 +171,7 @@ Meteor.methods({
 						
 						// Indicate that the game has started
 						Game.update({field: "gameStarted"}, {$set: { value: true }});
+						Game.update({field: "status"}, {$set: { value: "Game in progress", cssClass: "alert alert-success"}});
 					}
 				}, 10000);
 			}
@@ -164,6 +185,12 @@ Meteor.methods({
 		Game.insert({
 			field: "gameStarted",
 			value: false
+		});
+		
+		Game.insert({
+			field: "status",
+			value: "Waiting for players to join...",
+			cssClass: "alert alert-warning"
 		});
 		
 		playerNumber = 0;
@@ -180,18 +207,31 @@ Meteor.methods({
 		console.log("SHOTS FIRED!!!!!!!!!!");
 	},
 	initialize: function() {
-		// Set game as not started
-		Game.insert({
-			field: "gameStarted",
-			value: false
-		});
-		
-		// Build board
-		Game.insert({
-			field: "board",
-			numberRows: 10,
-			numberColumns: 10
-		});
+		if(!initialized) {
+			initialized = true;
+			
+			// Set game as not started
+			Game.insert({
+				field: "gameStarted",
+				value: false
+			});
+			
+			Game.insert({
+				field: "status",
+				value: "Waiting for players to join...",
+				cssClass: "alert alert-warning"
+			});
+			
+			// Build board
+			Game.insert({
+				field: "board",
+				numberRows: 10,
+				numberColumns: 10
+			});
+			
+			playerNumber = 0;
+			playerAdded = false;
+		}
 	}
 });
 

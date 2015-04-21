@@ -3,27 +3,45 @@
 </head>
 
 <body>
-	<h1>Battleship</h1>
-	{{> loginButtons}}
-	{{> players}}
-	{{> fireShot}}
-	{{> board}}
+	<div class="container">
+		<div class="row">
+			<div class="col-md-2 col-lg-2">
+				<h1>Battleship</h1>
+				{{> loginButtons}}
+				{{> joinGame}}
+				{{> statusBar}}
+				{{> players}}
+				{{> fireShot}}
+			</div>
+			<div class="col-md-10 col-lg-10">
+				{{> board}}
+			</div>
+		</div>
+	</div>
 </body>
+
+<template name="joinGame">
+	{{#if currentUser}}
+		{{#unless gameBegun}}
+			<button id="join_game" class="btn btn-primary">Join Game</button>
+		{{/unless}}
+		<button id="reset" class="btn btn-primary">Reset</button>
+	{{/if}}
+</template>
+
+<template name="statusBar">
+	{{#if currentUser}}
+	<div style="margin-top:10px">
+		<div id="status_bar" class="{{cssClass}}" role="alert">{{status}}</div>
+		</div>
+	{{/if}}
+</template>
 
 <template name="players">
 	<!-- Only display below information to logged in users -->
-	{{#if currentUser}}
-		{{#if gameBegun}}
-			<p>Game in progress</p>
-		{{else}}
-			<button id="join_game">Join Game</button>
-			<p>Waiting for players to join...</p>
-		{{/if}}
-	
-		<button id="reset">Reset</button>
-	
+	{{#if currentUser}}	
 		<!-- Display a list of players where the player whose turn it is is highlighted -->
-		<ul>
+		<ul class="list-group">
 			{{#each players}}
 				{{> player}}
 			{{/each}}
@@ -32,7 +50,7 @@
 </template>
 
 <template name="player">
-	<li class="{{#if isTurn}}active-player{{/if}}">
+	<li class="{{#if isTurn}}active{{/if}} list-group-item">
 		{{displayName}}
 	</li>
 </template>
