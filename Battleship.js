@@ -2,12 +2,9 @@ Players = new Mongo.Collection("Players");
 Game = new Mongo.Collection("Game");
 
 if (Meteor.isClient) {
-	// TODO should this be here?
-	Game.insert({
-		field: "board",
-		numberRows: 10,
-		numberColumns: 10
-	});
+	
+	Meteor.subscribe("players");
+	Meteor.subscribe("game");
 	
 	// Provides values to the players template
 	Template.players.helpers({
@@ -101,21 +98,12 @@ if (Meteor.isServer) {
 		
 		// Clear game information
 		Game.remove({});
-		
-		// Set game as not started
-		Game.insert({
-			field: "gameStarted",
-			value: false
-		});
-		
-		// Build board
-		/*Game.insert({
-			field: "board",
-			numberRows: 10,
-			numberColumns: 10
-		});*/
 	});
 }
+
+Meteor.startup(function() {
+	Meteor.call("initialize");
+});
 
 // Identifier for players, incremented as they are added.
 // Tracks with the current number of players because it starts at 0 and is incremented after each one is added.
@@ -188,8 +176,22 @@ Meteor.methods({
 		shotsFired = true;
 		advanceToNextPlayer();
 	},
-	test: function(event) {
+	test: function() {
 		console.log("SHOTS FIRED!!!!!!!!!!");
+	},
+	initialize: function() {
+		// Set game as not started
+		Game.insert({
+			field: "gameStarted",
+			value: false
+		});
+		
+		// Build board
+		Game.insert({
+			field: "board",
+			numberRows: 10,
+			numberColumns: 10
+		});
 	}
 });
 
@@ -218,4 +220,15 @@ function advanceToNextPlayer() {
 				}
 			}, 15000); // 15 seconds max per turn
 	}
+}
+
+// Publish access to datastores
+if(Meteor.isServer) {
+	Meteor.publish("game", function () {
+			return Game.find();
+		});
+		
+	Meteor.publish("players", function () {
+			return Players.find();
+		});
 }
