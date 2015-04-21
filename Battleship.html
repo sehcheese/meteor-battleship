@@ -6,7 +6,8 @@
 	<h1>Battleship</h1>
 	{{> loginButtons}}
 	{{> players}}
-	{{> fireShot}}	
+	{{> fireShot}}
+	{{> board}}
 </body>
 
 <template name="players">
@@ -40,4 +41,8 @@
 {{#if isTurn}}
 	<button id="fire_shot">Fire Shot</button>
 {{/if}}
+</template>
+
+<template name="board">
+	<table id="game_board" cellspacing="0" cellpadding="0" data-rows="{{numberRows}}" data-cols="{{numberColumns}}"></table>
 </template>

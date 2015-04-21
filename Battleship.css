@@ -1,3 +1,10 @@
 .active-player {
 	color: red
 }
+
+td {
+	background-color: white;
+	border: 1px solid #333333;
+	width: 40px;
+	height: 40px
+}

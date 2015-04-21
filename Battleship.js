@@ -2,9 +2,11 @@ Players = new Mongo.Collection("Players");
 Game = new Mongo.Collection("Game");
 
 if (Meteor.isClient) {
-	
-	Template.body.helpers({
-		
+	// TODO should this be here?
+	Game.insert({
+		field: "board",
+		numberRows: 10,
+		numberColumns: 10
 	});
 	
 	// Provides values to the players template
@@ -46,6 +48,43 @@ if (Meteor.isClient) {
 		}
 	});
 	
+	Template.board.events({
+		'click td': function(event) {
+			console.log(event.target.attributes["data-col"]);
+			Meteor.call("test");
+		}
+	});
+	
+	Template.board.rendered = function() {
+		var tableHtml;
+		var numberRows = Game.findOne({field: "board"}).numberRows;
+		var numberColumns = Game.findOne({field: "board"}).numberColumns
+		
+		for(var i = 0; i < numberRows; i++) {
+			tableHtml += "<tr>";
+			for(var j = 0; j < numberColumns; j++) {
+				tableHtml += '<td data-row="' + i + '" data-col="' + j + '"></td>'
+			}
+			tableHtml += "</tr>";
+		}
+		
+		$("#game_board").append(tableHtml);
+	};
+	
+	Template.board.helpers({
+		// Return board layout
+		rows: function () {
+			return Game.findOne({field: "board"}).numberRows;
+		}
+	});
+	
+	Template.board.helpers({
+		// Return board layout
+		columns: function () {
+			return Game.findOne({field: "board"}).numberColumns;
+		}
+	});
+	
 	// Set up accounts to require a username only, not an email address
 	Accounts.ui.config({
 		passwordSignupFields: "USERNAME_ONLY"
@@ -68,6 +107,13 @@ if (Meteor.isServer) {
 			field: "gameStarted",
 			value: false
 		});
+		
+		// Build board
+		/*Game.insert({
+			field: "board",
+			numberRows: 10,
+			numberColumns: 10
+		});*/
 	});
 }
 
@@ -141,6 +187,9 @@ Meteor.methods({
 		
 		shotsFired = true;
 		advanceToNextPlayer();
+	},
+	test: function(event) {
+		console.log("SHOTS FIRED!!!!!!!!!!");
 	}
 });
 
@@ -148,7 +197,6 @@ Meteor.methods({
 // Players have a set time to fire a shot or they forfeit their turn.
 var turnTimeout; // Variable for the timeout function
 function advanceToNextPlayer() {
-	console.log("here3");
 	// Set isTurn to false for player who just fired
 	Players.update({playerNumber: activePlayerNumber}, {$set: { isTurn: false }});
 	
