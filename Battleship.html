@@ -7,7 +7,7 @@
 		<div class="row">
 			<div class="col-md-2 col-lg-2">
 				<h1>Battleship</h1>
-				{{> loginButtons}}
+				{{> loginButtons}}<br/>
 				{{> joinGame}}
 				{{> statusBar}}
 				{{> players}}
@@ -22,9 +22,7 @@
 
 <template name="joinGame">
 	{{#if currentUser}}
-		{{#unless gameBegun}}
-			<button id="join_game" class="btn btn-primary">Join Game</button>
-		{{/unless}}
+		<button id="join_game" class="btn btn-primary" disabled="{{#if gameBegun}}disabled{{/if}}">Join Game</button>
 		<button id="reset" class="btn btn-primary">Reset</button>
 	{{/if}}
 </template>
