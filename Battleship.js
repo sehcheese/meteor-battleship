@@ -9,29 +9,7 @@ if (Meteor.isClient) {
 	
 	Meteor.subscribe("players");
 	Meteor.subscribe("game");
-	Meteor.subscribe("board", function() {
-		console.log("callback");
-		Session.set('boardUpdated', true);
-	});
-	
-	Tracker.autorun(function() {		
-		if (Session.get('boardUpdated')) {
-			console.log("tracker");
-			/*var numberRows = Game.findOne({field: "board"}).numberRows;
-			var numberColumns = Game.findOne({field: "board"}).numberColumns;
-			
-			for(var i = 0; i < numberRows; i++) {
-				for(var j = 0; j < numberColumns; j++) {
-					if(Board.findOne({row: i, column: j}).isShip) {
-						console.log("changeCSS");
-						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
-					}
-				}
-			}*/
-			
-			Session.set('boardUpdated', false);
-		}
-	});
+	Meteor.subscribe("board");
 	
 	Template.joinGame.helpers({
 		// Return if the game is started or not
@@ -79,12 +57,6 @@ if (Meteor.isClient) {
 		}
 	});
 	
-	Template.fireShot.events({
-		'click #fire_shot': function() {
-			Meteor.call("fireShot");
-		}
-	});
-	
 	Template.board.events({
 		'click td': function(event) {
 			console.log(event.target.attributes["data-col"]);
@@ -98,7 +70,7 @@ if (Meteor.isClient) {
 		for(var i = 0; i < numberRows; i++) {
 			tableHtml += "<tr>";
 			for(var j = 0; j < numberColumns; j++) {
-				tableHtml += '<td data-row="' + i + '" data-col="' + j + '"></td>'
+				tableHtml += '<td data-row="' + i + '" data-col="' + j + '" class="fire-shot"></td>'
 			}
 			tableHtml += "</tr>";
 		}
@@ -178,7 +150,20 @@ Meteor.methods({
 		}
 		
 		// Build board for this player
-		Meteor.call("setUpBoard");
+		Meteor.call("setUpBoard", null, function(error, result) {
+				if(Meteor.isClient) {
+					console.log("client");
+					console.log(Board.findOne({row: 9, column: 9}));
+					for(var i = 0; i < numberRows; i++) {
+						for(var j = 0; j < numberColumns; j++) {
+							if(Board.findOne({row: i, column: j}).isShip) {
+								console.log("changeCSS");
+								$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+							}
+						}
+					}
+				}
+			});
 		
 		// Player added, should we start the game?
 		// There must be at least two players.
@@ -275,7 +260,7 @@ Meteor.methods({
 		var numberRows = Game.findOne({field: "board"}).numberRows;
 		var numberColumns = Game.findOne({field: "board"}).numberColumns;
 		
-		if(Meteor.isServer) {
+		//if(Meteor.isServer) {
 			var playerBoard = generateBoardForPlayer();
 			// For each cell, if there is a ship add it to the board
 			for(var i = 0; i < numberRows; i++) {
@@ -292,7 +277,7 @@ Meteor.methods({
 					}
 				}
 			}
-		}
+		//}
 		
 		/*if(Meteor.isClient) {
 			console.log("client");
@@ -354,7 +339,7 @@ function generateBoardForPlayer() {
 	// Example of changing a cell:
 	generatedBoard[9][9].isShip = true;
 	generatedBoard[9][9].shipType = "Cruiser";
-	
+	console.log("ingeneratedboard");
 	return generatedBoard;
 }
 
