@@ -2,11 +2,36 @@ Players = new Mongo.Collection("Players");
 Game = new Mongo.Collection("Game");
 Board = new Mongo.Collection("Board");
 
+var numberRows = 20;
+var numberColumns = 20;
+
 if (Meteor.isClient) {
 	
 	Meteor.subscribe("players");
 	Meteor.subscribe("game");
-	Meteor.subscribe("board");
+	Meteor.subscribe("board", function() {
+		console.log("callback");
+		Session.set('boardUpdated', true);
+	});
+	
+	Tracker.autorun(function() {		
+		if (Session.get('boardUpdated')) {
+			console.log("tracker");
+			/*var numberRows = Game.findOne({field: "board"}).numberRows;
+			var numberColumns = Game.findOne({field: "board"}).numberColumns;
+			
+			for(var i = 0; i < numberRows; i++) {
+				for(var j = 0; j < numberColumns; j++) {
+					if(Board.findOne({row: i, column: j}).isShip) {
+						console.log("changeCSS");
+						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+					}
+				}
+			}*/
+			
+			Session.set('boardUpdated', false);
+		}
+	});
 	
 	Template.joinGame.helpers({
 		// Return if the game is started or not
@@ -69,8 +94,6 @@ if (Meteor.isClient) {
 	
 	Template.board.rendered = function() {
 		var tableHtml;
-		var numberRows = Game.findOne({field: "board"}).numberRows;
-		var numberColumns = Game.findOne({field: "board"}).numberColumns;
 		
 		for(var i = 0; i < numberRows; i++) {
 			tableHtml += "<tr>";
@@ -113,6 +136,8 @@ if (Meteor.isServer) {
 		
 		// Clear game information
 		Game.remove({});
+		
+		Board.remove({});
 	});
 }
 
@@ -215,7 +240,7 @@ Meteor.methods({
 		console.log("SHOTS FIRED!!!!!!!!!!");
 	},
 	initialize: function() {
-		if(!initialized) {
+		if(!initialized) { // Protects from refreshes
 			initialized = true;
 			
 			// Set game as not started
@@ -233,8 +258,8 @@ Meteor.methods({
 			// Build board
 			Game.insert({
 				field: "board",
-				numberRows: 10,
-				numberColumns: 10
+				numberRows: 20,
+				numberColumns: 20
 			});
 			
 			setUpBoard();
@@ -246,32 +271,40 @@ Meteor.methods({
 	// Set up the board for each player once they have joined the game
 	// Add their ships to the global board and display them in their view
 	// Not responsible for overlapping ships, this should be handled in generateBoardForPlayer
-	setUpBoard: function() {
-		// Initialize ship layout for this player
-		// Receive 2D array of objects representing the player's board
-		// This 2D array will be used to update the global board
-		var playerBoard = generateBoardForPlayer();
-		
+	setUpBoard: function() {		
 		var numberRows = Game.findOne({field: "board"}).numberRows;
 		var numberColumns = Game.findOne({field: "board"}).numberColumns;
 		
-		// For each cell, if there is a ship add it to the board
-		for(var i = 0; i < numberRows; i++) {
-			for(var j = 0; j < numberColumns; j++) {
-				if(playerBoard[i][j].isShip) { // If player's generated board contains a ship at this spot, update the global board
-					Board.update({row: i, column: j}, {$set: { 
-						isShip: true, 
-						shipOwner: Meteor.userId(), 
-						shipType: playerBoard[i][j].shipType
-					}});
-					
-					if(Meteor.isClient) {
-						console.log(i + " | " + j);
-						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+		if(Meteor.isServer) {
+			var playerBoard = generateBoardForPlayer();
+			// For each cell, if there is a ship add it to the board
+			for(var i = 0; i < numberRows; i++) {
+				for(var j = 0; j < numberColumns; j++) {
+					if(playerBoard[i][j].isShip) { // If player's generated board contains a ship at this spot, update the global board
+						console.log("addingShip");
+						Board.update({row: i, column: j}, {$set: { 
+							isShip: true, 
+							shipOwner: Meteor.userId(), 
+							shipType: playerBoard[i][j].shipType
+						}});
+						
+						
 					}
 				}
 			}
 		}
+		
+		/*if(Meteor.isClient) {
+			console.log("client");
+			for(var i = 0; i < numberRows; i++) {
+				for(var j = 0; j < numberColumns; j++) {
+					if(Board.findOne({row: i, column: j}).isShip) {
+						console.log("changeCSS");
+						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+					}
+				}
+			}
+		}*/
 	}
 });
 
@@ -315,11 +348,104 @@ function generateBoardForPlayer() {
 	}
 	
 	// Mbabu add code here that puts ships in the empty board
+	//generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)
+	
+	
 	// Example of changing a cell:
-	generatedBoard[1][1].isShip = true;
-	generatedBoard[1][1].shipType = "Cruiser";
+	generatedBoard[9][9].isShip = true;
+	generatedBoard[9][9].shipType = "Cruiser";
 	
 	return generatedBoard;
+}
+
+function generateShip(shipLength, shipType, numberRows, numberColumns, generatedBoard) {
+	// Generate random starting cell and direction
+	var randomRow = Math.floor((Math.random() * numberRows + 1));
+	var randomColumn = Math.floor((Math.random() * numberRows + 1));
+	var randomDirection = Math.floor((Math.random() * 4)); // Random direction of four directions: 0 == North, 1 == East, 2 == South, 3 == West
+	
+	// See if ship can exist in randomly selected spot
+	
+	// Check if generated start spot is already on an existing ship
+	if(Board.findOne({row: randomRow, column: randomColumn}).isShip) {
+		generateShip(shipLength, shipType, numberRows, numberColumns);
+		return;
+	}
+	
+	// Check if flows over edge of board
+	if(randomDirection == 0 && randomRow - shipLength < 0) { // Flows over north (top) edge, regenerate
+		generateShip(shipLength, shipType, numberRows, numberColumns);
+		return;
+	} else if(randomDirection == 1 && randomColumn + shipLength > numberColumns - 1) { // Flows over east (right) edge, regenerate
+		generateShip(shipLength, shipType, numberRows, numberColumns);
+		return;
+	} else if(randomDirection == 2 && randomRow + shipLength > numberRows - 1) { // Flows over south (bottom) edge, regenerate
+		generateShip(shipLength, shipType, numberRows, numberColumns);
+		return;
+	} else if(randomDirection == 3 && randomColumn - shipLength > 0) { // Flows over west (left) edge, regenerate
+		generateShip(shipLength, shipType, numberRows, numberColumns);
+		return;
+	}
+	
+	// Check if would occupy spot of existing ship
+	if(randomDirection == 0) { // Check northward for length of ship 
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow - i, column: randomColumn}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	} else if(randomDirection == 1) { // Check eastward for length of ship
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow, column: randomColumn + i}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	} else if(randomDirection == 2) { // Check southward for length of ship
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow + i, column: randomColumn}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	} else if(randomDirection == 3) { // Check westward for length of ship
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow, column: randomColumn - i}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	}
+	
+	// We have now checked that the generated ship does not flow off the board or overlap with any other existing ships.
+	// Therefore, place it on the board.
+	if(randomDirection == 0) { // Check northward for length of ship 
+		for(var i = 0; i < shipLength; i++) {
+			Board.update({row: randomRow - i, column: randomColumn});
+		}
+	} else if(randomDirection == 1) { // Check eastward for length of ship
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow, column: randomColumn + i}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	} else if(randomDirection == 2) { // Check southward for length of ship
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow + i, column: randomColumn}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	} else if(randomDirection == 3) { // Check westward for length of ship
+		for(var i = 1; i < shipLength; i++) {
+			if(Board.findOne({row: randomRow, column: randomColumn - i}).isShip) {
+				generateShip(shipLength, shipType, numberRows, numberColumns);
+				return;
+			}
+		}
+	}
 }
 
 // Advance to the next turn
