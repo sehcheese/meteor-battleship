@@ -1,10 +1,12 @@
 Players = new Mongo.Collection("Players");
 Game = new Mongo.Collection("Game");
+Board = new Mongo.Collection("Board");
 
 if (Meteor.isClient) {
 	
 	Meteor.subscribe("players");
 	Meteor.subscribe("game");
+	Meteor.subscribe("board");
 	
 	Template.joinGame.helpers({
 		// Return if the game is started or not
@@ -19,7 +21,6 @@ if (Meteor.isClient) {
 			return Game.findOne({field: "status"}).value;
 		},
 		cssClass: function() {
-			console.log(Game.findOne({field: "status"}));
 			return Game.findOne({field: "status"}).cssClass;
 		}
 	});
@@ -69,7 +70,7 @@ if (Meteor.isClient) {
 	Template.board.rendered = function() {
 		var tableHtml;
 		var numberRows = Game.findOne({field: "board"}).numberRows;
-		var numberColumns = Game.findOne({field: "board"}).numberColumns
+		var numberColumns = Game.findOne({field: "board"}).numberColumns;
 		
 		for(var i = 0; i < numberRows; i++) {
 			tableHtml += "<tr>";
@@ -151,6 +152,9 @@ Meteor.methods({
 			$("#join_game").prop("disabled",true);
 		}
 		
+		// Build board for this player
+		Meteor.call("setUpBoard");
+		
 		// Player added, should we start the game?
 		// There must be at least two players.
 		// Once two players are ready to start the game, start a timer to check if anyone joins in a set amount of time since the last player joined.
@@ -160,6 +164,8 @@ Meteor.methods({
 				playerAdded = false; // Clear the flag that was just set telling that a player was added. It will be set to true again if a player joins in the given interval.
 				Meteor.setTimeout(function() { // After ten seconds check if another player has been added
 					if(!playerAdded || playerNumber > 5) { // Player was not added in time interval since last player was added or the max number of players has been reached; start the game.
+						// Time to start the game
+						
 						// Give the first turn to the first player who joined
 						Players.update({playerNumber: 0}, {$set: { isTurn: true }});
 						activePlayerNumber = 0;
@@ -173,7 +179,7 @@ Meteor.methods({
 						Game.update({field: "gameStarted"}, {$set: { value: true }});
 						Game.update({field: "status"}, {$set: { value: "Game in progress", cssClass: "alert alert-success"}});
 					}
-				}, 10000);
+				}, 5000);
 			}
 		}
 	},
@@ -181,6 +187,8 @@ Meteor.methods({
 		Players.remove({});
 		
 		Game.remove({});
+		
+		Board.remove({});
 		
 		Game.insert({
 			field: "gameStarted",
@@ -229,11 +237,90 @@ Meteor.methods({
 				numberColumns: 10
 			});
 			
+			setUpBoard();
+			
 			playerNumber = 0;
 			playerAdded = false;
 		}
+	},
+	// Set up the board for each player once they have joined the game
+	// Add their ships to the global board and display them in their view
+	// Not responsible for overlapping ships, this should be handled in generateBoardForPlayer
+	setUpBoard: function() {
+		// Initialize ship layout for this player
+		// Receive 2D array of objects representing the player's board
+		// This 2D array will be used to update the global board
+		var playerBoard = generateBoardForPlayer();
+		
+		var numberRows = Game.findOne({field: "board"}).numberRows;
+		var numberColumns = Game.findOne({field: "board"}).numberColumns;
+		
+		// For each cell, if there is a ship add it to the board
+		for(var i = 0; i < numberRows; i++) {
+			for(var j = 0; j < numberColumns; j++) {
+				if(playerBoard[i][j].isShip) { // If player's generated board contains a ship at this spot, update the global board
+					Board.update({row: i, column: j}, {$set: { 
+						isShip: true, 
+						shipOwner: Meteor.userId(), 
+						shipType: playerBoard[i][j].shipType
+					}});
+					
+					if(Meteor.isClient) {
+						console.log(i + " | " + j);
+						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+					}
+				}
+			}
+		}
 	}
 });
+
+// Initialize empty board
+function setUpBoard() {
+	var numberRows = Game.findOne({field: "board"}).numberRows;
+	var numberColumns = Game.findOne({field: "board"}).numberColumns;
+	
+	// For each cell, add data fields
+	for(var i = 0; i < numberRows; i++) {
+		for(var j = 0; j < numberColumns; j++) {
+			Board.insert({
+				row: i,
+				column: j,
+				isShip: false,
+				shipOwner: "",
+				shipType: "",
+				isHit: false
+			});
+		}
+	}
+}
+
+// Generate ship layout for one player who has just joined
+// Responsible for making sure ships don't overlap
+function generateBoardForPlayer() {
+	var numberRows = Game.findOne({field: "board"}).numberRows;
+	var numberColumns = Game.findOne({field: "board"}).numberColumns;
+	
+	var generatedBoard = [];
+	
+	// Create empty generated board of proper size
+	for(var i = 0; i < numberRows; i++) {
+		generatedBoard[i] = [];
+		for(var j = 0; j < numberColumns; j++) {
+			generatedBoard[i][j] = {
+				isShip: false,
+				shipType: ""
+			};
+		}
+	}
+	
+	// Mbabu add code here that puts ships in the empty board
+	// Example of changing a cell:
+	generatedBoard[1][1].isShip = true;
+	generatedBoard[1][1].shipType = "Cruiser";
+	
+	return generatedBoard;
+}
 
 // Advance to the next turn
 // Players have a set time to fire a shot or they forfeit their turn.
@@ -264,11 +351,15 @@ function advanceToNextPlayer() {
 
 // Publish access to datastores
 if(Meteor.isServer) {
+	Meteor.publish("players", function () {
+			return Players.find();
+		});
+		
 	Meteor.publish("game", function () {
 			return Game.find();
 		});
 		
-	Meteor.publish("players", function () {
-			return Players.find();
+	Meteor.publish("board", function () {
+			return Board.find();
 		});
 }
