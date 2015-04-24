@@ -323,6 +323,16 @@ function generateBoardForPlayer() {
 	//generatedBoard[9][9].shipType = "Cruiser";
 	
 	//return generatedBoard;
+
+	
+	// Mbabu add code here that puts ships in the empty board
+	// The number of battleships in the game corresponds to the number of players
+    /*for(var i=1; i<playerNumber; i++){
+    	generatedBoard.push(generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)); 
+    	generatedBoard[i][i].isShip = true;
+		generatedBoard[i][i].shipType = "Cruiser";
+    }
+	return generatedBoard;*/
 }
 
 function generateShip(shipLength, shipType, numberRows, numberColumns) {
