@@ -152,8 +152,6 @@ Meteor.methods({
 		// Build board for this player
 		Meteor.call("setUpBoard", null, function(error, result) {
 				if(Meteor.isClient) {
-					console.log("client");
-					console.log(Board.findOne({row: 9, column: 9}));
 					for(var i = 0; i < numberRows; i++) {
 						for(var j = 0; j < numberColumns; j++) {
 							if(Board.findOne({row: i, column: j}).isShip) {
@@ -257,36 +255,20 @@ Meteor.methods({
 	// Add their ships to the global board and display them in their view
 	// Not responsible for overlapping ships, this should be handled in generateBoardForPlayer
 	setUpBoard: function() {		
-		var numberRows = Game.findOne({field: "board"}).numberRows;
-		var numberColumns = Game.findOne({field: "board"}).numberColumns;
+		//var numberRows = Game.findOne({field: "board"}).numberRows;
+		//var numberColumns = Game.findOne({field: "board"}).numberColumns;
 		
-		//if(Meteor.isServer) {
-			var playerBoard = generateBoardForPlayer();
-			// For each cell, if there is a ship add it to the board
-			for(var i = 0; i < numberRows; i++) {
-				for(var j = 0; j < numberColumns; j++) {
-					if(playerBoard[i][j].isShip) { // If player's generated board contains a ship at this spot, update the global board
-						console.log("addingShip");
-						Board.update({row: i, column: j}, {$set: { 
-							isShip: true, 
-							shipOwner: Meteor.userId(), 
-							shipType: playerBoard[i][j].shipType
-						}});
-						
-						
-					}
-				}
-			}
-		//}
-		
-		/*if(Meteor.isClient) {
-			console.log("client");
-			for(var i = 0; i < numberRows; i++) {
-				for(var j = 0; j < numberColumns; j++) {
-					if(Board.findOne({row: i, column: j}).isShip) {
-						console.log("changeCSS");
-						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
-					}
+		generateBoardForPlayer();
+		// For each cell, if there is a ship add it to the board
+		/*for(var i = 0; i < numberRows; i++) {
+			for(var j = 0; j < numberColumns; j++) {
+				if(playerBoard[i][j].isShip) { // If player's generated board contains a ship at this spot, update the global board
+					console.log("addingShip");
+					Board.update({row: i, column: j}, {$set: { 
+						isShip: true, 
+						shipOwner: Meteor.userId(), 
+						shipType: playerBoard[i][j].shipType
+					}});
 				}
 			}
 		}*/
@@ -319,10 +301,10 @@ function generateBoardForPlayer() {
 	var numberRows = Game.findOne({field: "board"}).numberRows;
 	var numberColumns = Game.findOne({field: "board"}).numberColumns;
 	
-	var generatedBoard = [];
+	//var generatedBoard = [];
 	
 	// Create empty generated board of proper size
-	for(var i = 0; i < numberRows; i++) {
+	/*for(var i = 0; i < numberRows; i++) {
 		generatedBoard[i] = [];
 		for(var j = 0; j < numberColumns; j++) {
 			generatedBoard[i][j] = {
@@ -330,20 +312,20 @@ function generateBoardForPlayer() {
 				shipType: ""
 			};
 		}
-	}
+	}*/
 	
 	// Mbabu add code here that puts ships in the empty board
-	//generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)
+	generateShip(3, "Cruiser", numberRows, numberColumns)
 	
 	
 	// Example of changing a cell:
-	generatedBoard[9][9].isShip = true;
-	generatedBoard[9][9].shipType = "Cruiser";
-	console.log("ingeneratedboard");
-	return generatedBoard;
+	//generatedBoard[9][9].isShip = true;
+	//generatedBoard[9][9].shipType = "Cruiser";
+	
+	//return generatedBoard;
 }
 
-function generateShip(shipLength, shipType, numberRows, numberColumns, generatedBoard) {
+function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	// Generate random starting cell and direction
 	var randomRow = Math.floor((Math.random() * numberRows + 1));
 	var randomColumn = Math.floor((Math.random() * numberRows + 1));
@@ -407,28 +389,27 @@ function generateShip(shipLength, shipType, numberRows, numberColumns, generated
 	// Therefore, place it on the board.
 	if(randomDirection == 0) { // Check northward for length of ship 
 		for(var i = 0; i < shipLength; i++) {
-			Board.update({row: randomRow - i, column: randomColumn});
+			Board.update({row: randomRow - i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			console.log("ship cell added at")
+			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 1) { // Check eastward for length of ship
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow, column: randomColumn + i}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
-			}
+		for(var i = 0; i < shipLength; i++) {
+			Board.update({row: randomRow, column: randomColumn + i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			console.log("ship cell added at")
+			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 2) { // Check southward for length of ship
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow + i, column: randomColumn}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
-			}
+		for(var i = 0; i < shipLength; i++) {
+			Board.update({row: randomRow + i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			console.log("ship cell added at");
+			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 3) { // Check westward for length of ship
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow, column: randomColumn - i}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
-			}
+		for(var i = 0; i < shipLength; i++) {
+			Board.update({row: randomRow, column: randomColumn - i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			console.log("ship cell added at");
+			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	}
 }
