@@ -331,11 +331,16 @@ function generateBoardForPlayer() {
 			};
 		}
 	}
+
 	
 	// Mbabu add code here that puts ships in the empty board
-	//generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)
-	
-	
+
+	// The number of battleships in the game corresponds to the number of players in the game
+    for(var i=1; i<playerNumber; i++){
+    	generatedBoard.push(generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)); 
+
+    }
+    
 	// Example of changing a cell:
 	generatedBoard[9][9].isShip = true;
 	generatedBoard[9][9].shipType = "Cruiser";
