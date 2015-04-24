@@ -334,17 +334,12 @@ function generateBoardForPlayer() {
 
 	
 	// Mbabu add code here that puts ships in the empty board
-
-	// The number of battleships in the game corresponds to the number of players in the game
+	// The number of battleships in the game corresponds to the number of players
     for(var i=1; i<playerNumber; i++){
     	generatedBoard.push(generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)); 
-
+    	generatedBoard[i][i].isShip = true;
+		generatedBoard[i][i].shipType = "Cruiser";
     }
-    
-	// Example of changing a cell:
-	generatedBoard[9][9].isShip = true;
-	generatedBoard[9][9].shipType = "Cruiser";
-	console.log("ingeneratedboard");
 	return generatedBoard;
 }
 
