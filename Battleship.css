@@ -10,5 +10,12 @@ td {
 }
 
 .unhit-ship-cell {
+	background-color: black;
+}
+
+.hit-ship-cell{
 	background-color: blue;
+}
+.missed-ship-cell{
+	background-color: red;
 }

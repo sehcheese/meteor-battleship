@@ -60,7 +60,7 @@ if (Meteor.isClient) {
 	Template.board.events({
 		'click td': function(event) {
 			console.log(event.target.attributes["data-col"]);
-			Meteor.call("test");
+			Meteor.call("fireShot");
 		}
 	});
 	
@@ -213,9 +213,24 @@ Meteor.methods({
 		playerAdded = false;
 	},
 	fireShot: function() {
-		// Fire shot and do game stuff
-		// TODO add code
-		
+		var r = parseInt(event.target.attributes["data-row"].value);
+		var c = parseInt(event.target.attributes["data-col"].value);
+	
+		if(Board.findOne({row: r, column: c}).isShip) {
+			console.log("Is Ship!");
+			if(Board.findOne({row: r, column: c}).isHit) {
+				console.log("Already Hit!");
+			}else{
+				console.log("Hit Ship!");
+				$('td[data-row="' + r + '"][data-col="' + c + '"]').addClass("hit-ship-cell");
+				Board.findOne({row: r, column: c}).isHit.value = true;
+			}
+		}else{
+			console.log("Not A Ship!");
+			$('td[data-row="' + r + '"][data-col="' + c + '"]').addClass("missed-ship-cell");
+		}
+
+
 		shotsFired = true;
 		advanceToNextPlayer();
 	},
