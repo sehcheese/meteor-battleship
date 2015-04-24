@@ -158,18 +158,7 @@ Meteor.methods({
 		}
 		
 		// Build board for this player
-		Meteor.call("setUpBoard", null, function(error, result) {
-				/*if(Meteor.isClient) {
-					for(var i = 0; i < numberRows; i++) {
-						for(var j = 0; j < numberColumns; j++) {
-							if(Board.findOne({row: i, column: j}).isShip) {
-								console.log("changeCSSCallback");
-								$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
-							}
-						}
-					}
-				}*/
-			});
+		Meteor.call("setUpBoard");
 		
 		// Player added, should we start the game?
 		// There must be at least two players.
@@ -345,7 +334,11 @@ function generateBoardForPlayer() {
 	
 	// Mbabu add code here that puts ships in the empty board
 	if(Meteor.isServer) {
+		generateShip(2, "Destroyer", numberRows, numberColumns)
+		generateShip(3, "Submarine", numberRows, numberColumns)
 		generateShip(3, "Cruiser", numberRows, numberColumns)
+		generateShip(4, "Battleship", numberRows, numberColumns)
+		generateShip(5, "Carrier", numberRows, numberColumns)
 	}
 	
 	
@@ -368,13 +361,15 @@ function generateBoardForPlayer() {
 
 function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	// Generate random starting cell and direction
-	var randomRow = Math.floor((Math.random() * numberRows + 1));
-	var randomColumn = Math.floor((Math.random() * numberRows + 1));
+	var randomRow = Math.floor((Math.random() * numberRows));
+	var randomColumn = Math.floor((Math.random() * numberColumns));
 	var randomDirection = Math.floor((Math.random() * 4)); // Random direction of four directions: 0 == North, 1 == East, 2 == South, 3 == West
 	
 	// See if ship can exist in randomly selected spot
 	
 	// Check if generated start spot is already on an existing ship
+	console.log("RANDOM ROW " + randomRow);
+	console.log("RANDOM COLUMN " + randomColumn);
 	if(Board.findOne({row: randomRow, column: randomColumn}).isShip) {
 		generateShip(shipLength, shipType, numberRows, numberColumns);
 		return;
@@ -390,7 +385,7 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	} else if(randomDirection == 2 && randomRow + shipLength > numberRows - 1) { // Flows over south (bottom) edge, regenerate
 		generateShip(shipLength, shipType, numberRows, numberColumns);
 		return;
-	} else if(randomDirection == 3 && randomColumn - shipLength > 0) { // Flows over west (left) edge, regenerate
+	} else if(randomDirection == 3 && randomColumn - shipLength < 0) { // Flows over west (left) edge, regenerate
 		generateShip(shipLength, shipType, numberRows, numberColumns);
 		return;
 	}
@@ -431,26 +426,26 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	if(randomDirection == 0) { // Check northward for length of ship 
 		for(var i = 0; i < shipLength; i++) {
 			Board.update({row: randomRow - i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			console.log("ship cell added at")
-			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
+			//console.log("ship cell added at")
+			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 1) { // Check eastward for length of ship
 		for(var i = 0; i < shipLength; i++) {
 			Board.update({row: randomRow, column: randomColumn + i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			console.log("ship cell added at")
-			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
+			//console.log("ship cell added at")
+			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 2) { // Check southward for length of ship
 		for(var i = 0; i < shipLength; i++) {
 			Board.update({row: randomRow + i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			console.log("ship cell added at");
-			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
+			//console.log("ship cell added at");
+			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 3) { // Check westward for length of ship
 		for(var i = 0; i < shipLength; i++) {
 			Board.update({row: randomRow, column: randomColumn - i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			console.log("ship cell added at");
-			console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
+			//console.log("ship cell added at");
+			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	}
 }
