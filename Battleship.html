@@ -11,7 +11,6 @@
 				{{> joinGame}}
 				{{> statusBar}}
 				{{> players}}
-				{{> fireShot}}
 			</div>
 			<div class="col-md-10 col-lg-10">
 				{{> board}}
@@ -51,12 +50,6 @@
 	<li class="{{#if isTurn}}active{{/if}} list-group-item">
 		{{displayName}}
 	</li>
-</template>
-
-<template name="fireShot">
-{{#if isTurn}}
-	<button id="fire_shot">Fire Shot</button>
-{{/if}}
 </template>
 
 <template name="board">

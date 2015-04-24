@@ -9,7 +9,21 @@ if (Meteor.isClient) {
 	
 	Meteor.subscribe("players");
 	Meteor.subscribe("game");
-	Meteor.subscribe("board");
+	var boardHandle = Meteor.subscribe("board");
+	
+	Tracker.autorun(function() {
+		if(boardHandle.ready()) {
+			for(var i = 0; i < numberRows; i++) {
+				for(var j = 0; j < numberColumns; j++) {
+					var cell = Board.findOne({row: i, column: j});
+					if(cell != null && cell.isShip) {
+						console.log("changeCSSTracker");
+						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+					}
+				}
+			}
+		}
+	});
 	
 	Template.joinGame.helpers({
 		// Return if the game is started or not
@@ -46,21 +60,15 @@ if (Meteor.isClient) {
 		},
 	});
 	
-	Template.fireShot.helpers({
-		isTurn: function() {
-			var isTurn = Players.findOne({ player: Meteor.userId() });
-			if(isTurn == null) {
-				return false;
-			} else {
-				return isTurn.isTurn;
-			}
-		}
-	});
-	
 	Template.board.events({
 		'click td': function(event) {
-			console.log(event.target.attributes["data-col"]);
-			Meteor.call("fireShot");
+			var clickedRow = parseInt(event.target.attributes["data-row"].value);
+			var clickedColumn = parseInt(event.target.attributes["data-col"].value);
+			var isTurn = Players.findOne({ player: Meteor.userId() }).isTurn;
+			console.log("isTurn: " + isTurn);
+			if(isTurn) {
+				Meteor.call("fireShot", clickedRow, clickedColumn);
+			}
 		}
 	});
 	
@@ -151,16 +159,16 @@ Meteor.methods({
 		
 		// Build board for this player
 		Meteor.call("setUpBoard", null, function(error, result) {
-				if(Meteor.isClient) {
+				/*if(Meteor.isClient) {
 					for(var i = 0; i < numberRows; i++) {
 						for(var j = 0; j < numberColumns; j++) {
 							if(Board.findOne({row: i, column: j}).isShip) {
-								console.log("changeCSS");
+								console.log("changeCSSCallback");
 								$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
 							}
 						}
 					}
-				}
+				}*/
 			});
 		
 		// Player added, should we start the game?
@@ -212,22 +220,28 @@ Meteor.methods({
 		playerNumber = 0;
 		playerAdded = false;
 	},
-	fireShot: function() {
-		var r = parseInt(event.target.attributes["data-row"].value);
-		var c = parseInt(event.target.attributes["data-col"].value);
-	
-		if(Board.findOne({row: r, column: c}).isShip) {
+	fireShot: function(clickedRow, clickedColumn) {
+		console.log(clickedRow);
+		console.log(clickedColumn);	
+		
+		var clickedCell = Board.findOne({row: clickedRow, column: clickedColumn});
+		if(clickedCell.isShip) { // Ship in this cell
 			console.log("Is Ship!");
-			if(Board.findOne({row: r, column: c}).isHit) {
+			if(clickedCell.isHit) { // Ship already hit
 				console.log("Already Hit!");
-			}else{
+			} else { // Ship not yet hit
 				console.log("Hit Ship!");
-				$('td[data-row="' + r + '"][data-col="' + c + '"]').addClass("hit-ship-cell");
-				Board.findOne({row: r, column: c}).isHit.value = true;
+				if(Meteor.isClient) {
+					$('td[data-row="' + clickedRow + '"][data-col="' + clickedColumn + '"]').addClass("hit-ship-cell");
+				}
+				
+				Board.update({row: clickedRow, column: clickedColumn}, {$set: {isHit: true}});
 			}
-		}else{
+		} else { // No ship in this cell
 			console.log("Not A Ship!");
-			$('td[data-row="' + r + '"][data-col="' + c + '"]').addClass("missed-ship-cell");
+			if(Meteor.isClient) {
+				$('td[data-row="' + clickedRow + '"][data-col="' + clickedColumn + '"]').addClass("missed-ship-cell");
+			}
 		}
 
 
@@ -330,7 +344,9 @@ function generateBoardForPlayer() {
 	}*/
 	
 	// Mbabu add code here that puts ships in the empty board
-	generateShip(3, "Cruiser", numberRows, numberColumns)
+	if(Meteor.isServer) {
+		generateShip(3, "Cruiser", numberRows, numberColumns)
+	}
 	
 	
 	// Example of changing a cell:
@@ -477,6 +493,6 @@ if(Meteor.isServer) {
 		});
 		
 	Meteor.publish("board", function () {
-			return Board.find();
+			return Board.find({ shipOwner: this.userId });
 		});
 }
