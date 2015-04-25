@@ -62,11 +62,11 @@ if (Meteor.isClient) {
 	
 	Template.board.events({
 		'click td': function(event) {
-			var clickedRow = parseInt(event.target.attributes["data-row"].value);
-			var clickedColumn = parseInt(event.target.attributes["data-col"].value);
 			var isTurn = Players.findOne({ player: Meteor.userId() }).isTurn;
 			console.log("isTurn: " + isTurn);
 			if(isTurn) {
+				var clickedRow = parseInt(event.target.attributes["data-row"].value);
+				var clickedColumn = parseInt(event.target.attributes["data-col"].value);
 				Meteor.call("fireShot", clickedRow, clickedColumn);
 			}
 		}
@@ -147,7 +147,9 @@ Meteor.methods({
 			player: Meteor.userId(),
 			displayName: Meteor.user().username,
 			playerNumber: playerNumber,
-			isTurn: false
+			isTurn: false,
+			inGame: true,
+			score: 0
 		});
 		
 		playerNumber++;
@@ -225,6 +227,12 @@ Meteor.methods({
 				}
 				
 				Board.update({row: clickedRow, column: clickedColumn}, {$set: {isHit: true}});
+				
+				// TODO CHeck if ship sunk; if player has no ships left, remove from rotation
+				
+				// Award points to player
+				var currentScore = Players.findOne({ player: Meteor.userId() }).score;
+				Players.update({player: Meteor.userId()}, {$set: { score: currentScore + 1 }});
 			}
 		} else { // No ship in this cell
 			console.log("Not A Ship!");
@@ -233,12 +241,8 @@ Meteor.methods({
 			}
 		}
 
-
 		shotsFired = true;
 		advanceToNextPlayer();
-	},
-	test: function() {
-		console.log("SHOTS FIRED!!!!!!!!!!");
 	},
 	initialize: function() {
 		if(!initialized) { // Protects from refreshes
@@ -271,25 +275,19 @@ Meteor.methods({
 	},
 	// Set up the board for each player once they have joined the game
 	// Add their ships to the global board and display them in their view
-	// Not responsible for overlapping ships, this should be handled in generateBoardForPlayer
-	setUpBoard: function() {		
-		//var numberRows = Game.findOne({field: "board"}).numberRows;
-		//var numberColumns = Game.findOne({field: "board"}).numberColumns;
+	// Not responsible for overlapping ships, this should be handled in generateShip
+	setUpBoard: function() {
+		if(Meteor.isServer) {
+			var numberRows = Game.findOne({field: "board"}).numberRows;
+			var numberColumns = Game.findOne({field: "board"}).numberColumns;
+			
+			generateShip(2, "Destroyer", numberRows, numberColumns)
+			generateShip(3, "Submarine", numberRows, numberColumns)
+			generateShip(3, "Cruiser", numberRows, numberColumns)
+			generateShip(4, "Battleship", numberRows, numberColumns)
+			generateShip(5, "Carrier", numberRows, numberColumns)
+		}
 		
-		generateBoardForPlayer();
-		// For each cell, if there is a ship add it to the board
-		/*for(var i = 0; i < numberRows; i++) {
-			for(var j = 0; j < numberColumns; j++) {
-				if(playerBoard[i][j].isShip) { // If player's generated board contains a ship at this spot, update the global board
-					console.log("addingShip");
-					Board.update({row: i, column: j}, {$set: { 
-						isShip: true, 
-						shipOwner: Meteor.userId(), 
-						shipType: playerBoard[i][j].shipType
-					}});
-				}
-			}
-		}*/
 	}
 });
 
@@ -313,52 +311,6 @@ function setUpBoard() {
 	}
 }
 
-// Generate ship layout for one player who has just joined
-// Responsible for making sure ships don't overlap
-function generateBoardForPlayer() {
-	var numberRows = Game.findOne({field: "board"}).numberRows;
-	var numberColumns = Game.findOne({field: "board"}).numberColumns;
-	
-	//var generatedBoard = [];
-	
-	// Create empty generated board of proper size
-	/*for(var i = 0; i < numberRows; i++) {
-		generatedBoard[i] = [];
-		for(var j = 0; j < numberColumns; j++) {
-			generatedBoard[i][j] = {
-				isShip: false,
-				shipType: ""
-			};
-		}
-	}*/
-	
-	// Mbabu add code here that puts ships in the empty board
-	if(Meteor.isServer) {
-		generateShip(2, "Destroyer", numberRows, numberColumns)
-		generateShip(3, "Submarine", numberRows, numberColumns)
-		generateShip(3, "Cruiser", numberRows, numberColumns)
-		generateShip(4, "Battleship", numberRows, numberColumns)
-		generateShip(5, "Carrier", numberRows, numberColumns)
-	}
-	
-	
-	// Example of changing a cell:
-	//generatedBoard[9][9].isShip = true;
-	//generatedBoard[9][9].shipType = "Cruiser";
-	
-	//return generatedBoard;
-
-	
-	// Mbabu add code here that puts ships in the empty board
-	// The number of battleships in the game corresponds to the number of players
-    /*for(var i=1; i<playerNumber; i++){
-    	generatedBoard.push(generateShip(3, "Cruiser", numberRows, numberColumns, generatedBoard)); 
-    	generatedBoard[i][i].isShip = true;
-		generatedBoard[i][i].shipType = "Cruiser";
-    }
-	return generatedBoard;*/
-}
-
 function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	// Generate random starting cell and direction
 	var randomRow = Math.floor((Math.random() * numberRows));
@@ -368,8 +320,6 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	// See if ship can exist in randomly selected spot
 	
 	// Check if generated start spot is already on an existing ship
-	console.log("RANDOM ROW " + randomRow);
-	console.log("RANDOM COLUMN " + randomColumn);
 	if(Board.findOne({row: randomRow, column: randomColumn}).isShip) {
 		generateShip(shipLength, shipType, numberRows, numberColumns);
 		return;
@@ -453,16 +403,37 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 // Advance to the next turn
 // Players have a set time to fire a shot or they forfeit their turn.
 var turnTimeout; // Variable for the timeout function
+var lastPlayerSequenceNumberToFire;
 function advanceToNextPlayer() {
+	// Note player who last fired; if it becomes this player's turn again the game is over
+	lastPlayerSequenceNumberToFire = activePlayerNumber;
+	
 	// Set isTurn to false for player who just fired
 	Players.update({playerNumber: activePlayerNumber}, {$set: { isTurn: false }});
 	
-	// Set isTurn to true for next player in sequence
-	if(activePlayerNumber == playerNumber - 1) { // Reached last player in sequence; loop to start
-		activePlayerNumber = 0;
-	} else {
-		activePlayerNumber++;
-	}
+	// Set isTurn to true for next player in sequence who is still in the game
+	var foundNextPlayer = false;
+	while(!foundNextPlayer) {
+		// Increment activePlayerNumber to next player in sequence
+		if(activePlayerNumber == playerNumber - 1) { // Reached last player in sequence; loop to start
+			activePlayerNumber = 0;
+		} else {
+			activePlayerNumber++;
+		}
+		
+		// Check if the next player is in the game (hasn't had all their ships eliminated)
+		if(!Players.findOne({playerNumber: activePlayerNumber}).inGame) {
+			foundNextPlayer = true;
+			
+			// Check if the found next player is the same as the last player to fire, indicating the end of the game
+			if(activePlayerNumber == lastPlayerSequenceNumberToFire) {
+				console.log("GAME OVER");
+				Game.update({field: "status"}, {$set: { value: "Game over", cssClass: "alert alert-primary"}});
+				return;
+			}
+		}
+	}	
+	
 	Players.update({playerNumber: activePlayerNumber}, {$set: { isTurn: true }});
 	
 	// If player does not fire in certain amount of time, advance to next player
@@ -488,6 +459,11 @@ if(Meteor.isServer) {
 		});
 		
 	Meteor.publish("board", function () {
-			return Board.find({ shipOwner: this.userId });
+			return Board.find({
+				$or: [
+				  { shipOwner: this.userId },
+				  { shipOwner: "" }
+				]
+			  });
 		});
 }
