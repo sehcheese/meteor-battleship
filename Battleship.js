@@ -12,16 +12,25 @@ if (Meteor.isClient) {
 	var boardHandle = Meteor.subscribe("board");
 	
 	Tracker.autorun(function() {
+		// Every time the Board dataset is updated, go through here and redraw the board for this player
 		if(boardHandle.ready()) {
 			var playerBoardDocument = Board.findOne({forPlayer: Meteor.userId()});
 			if(playerBoardDocument != null) {
-				console.log("HHHEEERRREEE");
 				var cells = playerBoardDocument.boardCells;
 				for(var i = 0; i < numberRows; i++) {
 					for(var j = 0; j < numberColumns; j++) {
-						if(cells != null && cells[i][j].isShip) {
-							console.log("changeCSSTracker");
-							$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+						var cellSelectorString = 'td[data-row="' + i + '"][data-col="' + j + '"]';
+						if(cells[i][j].isShip) { // This cell contains a ship that belongs to this player
+							$(cellSelectorString).removeClass(); // Clear existing classes
+							if(cells[i][j].isHit) { // Own ship is hit
+								$(cellSelectorString).addClass("own-ship-hit-cell");
+							} else { // Own ship is not hit
+								$(cellSelectorString).addClass("own-ship-cell");
+							}
+						} else if(cells[i][j].isHit) { // Player hit a ship in this cell
+							$(cellSelectorString).addClass("hit-shot-cell");
+						} else if(cells[i][j].isMiss) {
+							$(cellSelectorString).addClass("missed-shot-cell");
 						}
 					}
 				}
@@ -58,16 +67,12 @@ if (Meteor.isClient) {
 	Template.joinGame.events({
 		'click #join_game': function() {
 			Meteor.call("addPlayer");
-		},
-		'click #reset': function() {
-			Meteor.call("reset");
-		},
+		}
 	});
 	
 	Template.board.events({
 		'click td': function(event) {
-			var isTurn = Players.findOne({ player: Meteor.userId() }).isTurn;
-			console.log("isTurn: " + isTurn);
+			var isTurn = Players.findOne({ player: Meteor.userId() }).isTurn; // Ascertain it is this player's turn
 			if(isTurn) {
 				var clickedRow = parseInt(event.target.attributes["data-row"].value);
 				var clickedColumn = parseInt(event.target.attributes["data-col"].value);
@@ -76,6 +81,7 @@ if (Meteor.isClient) {
 		}
 	});
 	
+	// Dynamically generate the battleship board
 	Template.board.rendered = function() {
 		var tableHtml;
 		
@@ -180,7 +186,7 @@ Meteor.methods({
 						// Give the first turn to the first player who joined
 						Players.update({playerNumber: 0}, {$set: { isTurn: true }});
 						activePlayerNumber = 0;
-						Meteor.setTimeout(function() { // Timeout for first turn needs to be set up manually because there's not a preceding turn triggering it
+						turnTimeout = Meteor.setTimeout(function() { // Timeout for first turn needs to be set up manually because there's not a preceding turn triggering it
 							if(!shotsFired) {
 								advanceToNextPlayer();
 							}
@@ -194,59 +200,56 @@ Meteor.methods({
 			}
 		}
 	},
-	reset: function() {
-		Players.remove({});
-		
-		Game.remove({});
-		
-		Board.remove({});
-		
-		Game.insert({
-			field: "gameStarted",
-			value: false
-		});
-		
-		Game.insert({
-			field: "status",
-			value: "Waiting for players to join...",
-			cssClass: "alert alert-warning"
-		});
-		
-		playerNumber = 0;
-		playerAdded = false;
-	},
+	// Player fires a shot on his turn
 	fireShot: function(clickedRow, clickedColumn) {
-		console.log(clickedRow);
-		console.log(clickedColumn);	
-		
-		var clickedCell = Board.findOne({row: clickedRow, column: clickedColumn});
-		if(clickedCell.isShip) { // Ship in this cell
-			console.log("Is Ship!");
-			if(clickedCell.isHit) { // Ship already hit
-				console.log("Already Hit!");
-			} else { // Ship not yet hit
-				console.log("Hit Ship!");
-				if(Meteor.isClient) {
-					$('td[data-row="' + clickedRow + '"][data-col="' + clickedColumn + '"]').addClass("hit-ship-cell");
-				}
-				
-				Board.update({row: clickedRow, column: clickedColumn}, {$set: {isHit: true}});
-				
-				// TODO CHeck if ship sunk; if player has no ships left, remove from rotation
-				
-				// Award points to player
-				var currentScore = Players.findOne({ player: Meteor.userId() }).score;
-				Players.update({player: Meteor.userId()}, {$set: { score: currentScore + 1 }});
-			}
-		} else { // No ship in this cell
-			console.log("Not A Ship!");
-			if(Meteor.isClient) {
-				$('td[data-row="' + clickedRow + '"][data-col="' + clickedColumn + '"]').addClass("missed-ship-cell");
-			}
+		// Make sure player is not firing on own ship or somewhere they have already fired
+		var personalCells = Board.findOne({forPlayer: Meteor.userId()}).boardCells;
+		if(personalCells[clickedRow][clickedColumn].isShip) { // Firing on ship, return
+			return;
+		} else if(personalCells[clickedRow][clickedColumn].isHit || personalCells[clickedRow][clickedColumn].isMiss) { // Firing on somewhere already fired on, return
+			return;
 		}
-
-		shotsFired = true;
-		advanceToNextPlayer();
+		
+		if(Meteor.isServer) {
+			// Get the boards for every player as an array (note the array is non-reactive, that's why we have to do the Board.update statements)
+			var boards = Board.find().fetch();
+			
+			// Check in the board of each player (including the board of the shooter) to see if there is a ship there
+			var hitAShip = false; // Flag indicating whether we hit a ship or not, used in updating shooter's board
+			for(var boardNumber = 0; boardNumber < boards.length; boardNumber++) { // Loop through the boards of every player
+				var boardOwner = boards[boardNumber].forPlayer; // Get the owner of this board
+				var boardCells = boards[boardNumber].boardCells; // Get the cells of this board
+				
+				if(boardCells[clickedRow][clickedColumn].isShip) { // There is a ship in clicked cell
+					hitAShip = true;
+					
+					if(!boardCells[clickedRow][clickedColumn].isHit) { // Ship not already hit, update as hit for player who owns the ship
+						var currentScore = Players.findOne({ player: Meteor.userId() }).score;
+						Players.update({player: Meteor.userId()}, {$set: { score: currentScore + 1 }});
+						
+						boardCells[clickedRow][clickedColumn].isHit = true;
+						Board.update({forPlayer: boardOwner}, {$set: {boardCells: boardCells}});
+					}					
+					
+					// TODO CHeck if ship sunk; if player has no ships left, remove from rotation
+					
+					break; // Found that there was a ship hit, no need to keep looping
+				}
+			}
+			
+			// Now update board of player who fired the shot based on whether the shot was a hit or miss
+			if(hitAShip) { // Indicate hit to player who fired the shot
+				personalCells[clickedRow][clickedColumn].isHit = true;
+				Board.update({forPlayer: Meteor.userId()}, {$set: {boardCells: personalCells}});
+			} else { // Indicate miss to player who fired the shot
+				personalCells[clickedRow][clickedColumn].isMiss = true;
+				Board.update({forPlayer: Meteor.userId()}, {$set: {boardCells: personalCells}});
+			}
+			
+			// Advance to next player's turn
+			shotsFired = true;
+			advanceToNextPlayer();
+		}
 	},
 	initialize: function() {
 		if(!initialized) { // Protects from refreshes
@@ -278,7 +281,7 @@ Meteor.methods({
 		}
 	},
 	// Set up the board for each player once they have joined the game
-	// Add their ships to the global board and display them in their view
+	// Each player has their own board in the dataset; there is no global board
 	// Not responsible for overlapping ships, this should be handled in generateShip
 	setUpBoard: function() {
 		if(Meteor.isServer) {
@@ -290,10 +293,12 @@ Meteor.methods({
 			for(var i = 0; i < numberRows; i++) {
 				emptyCells[i] = []
 				for(var j = 0; j < numberColumns; j++) {
+					// Add a cell obect to this 2D array
 					emptyCells[i].push({
-						isShip: false,
-						shipType: "",
-						isHit: false
+						isShip: false, // Indicates if there is a ship in this spot, that is, one of this player's own ships
+						shipType: "", // Indicates the type of ship if there is a ship in this spot, therefore it is only set for this player's own ships
+						isHit: false, // Indicates if there is a hit in this square, whether on this player's own ship or on another player's ship
+						isMiss: false // Indicates if the player has shot this square but it has not hit any other player's ships
 					});
 				}
 			}
@@ -302,7 +307,7 @@ Meteor.methods({
 				forPlayer: Meteor.userId(),
 				boardCells: emptyCells
 			});
-			console.log("board created for player");
+			
 			generateShip(2, "Destroyer", numberRows, numberColumns);
 			generateShip(3, "Submarine", numberRows, numberColumns);
 			generateShip(3, "Cruiser", numberRows, numberColumns);
@@ -312,27 +317,6 @@ Meteor.methods({
 		
 	}
 });
-
-// Initialize empty board
-function setUpBoard() {
-	var numberRows = Game.findOne({field: "board"}).numberRows;
-	var numberColumns = Game.findOne({field: "board"}).numberColumns;
-	
-	// For each cell, add data fields
-	var cells = [];
-	for(var i = 0; i < numberRows; i++) {
-		for(var j = 0; j < numberColumns; j++) {
-			cells.push({
-				row: i,
-				column: j,
-				isShip: false,
-				shipOwner: "",
-				shipType: "",
-				isHit: false
-			});
-		}
-	}
-}
 
 function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	// Generate random starting cell and direction
@@ -409,36 +393,25 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 		for(var i = 0; i < shipLength; i++) {
 			boardCells[randomRow - i][randomColumn].isShip = true;
 			boardCells[randomRow - i][randomColumn].shipType = shipType;
-			//Board.update({row: randomRow - i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			//console.log("ship cell added at")
-			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 1) { // Place eastward for length of ship
 		for(var i = 0; i < shipLength; i++) {
 			boardCells[randomRow][randomColumn + i].isShip = true;
 			boardCells[randomRow][randomColumn + i].shipType = shipType;
-			//Board.update({row: randomRow, column: randomColumn + i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			//console.log("ship cell added at")
-			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 2) { // Place southward for length of ship
 		for(var i = 0; i < shipLength; i++) {
 			boardCells[randomRow + i][randomColumn].isShip = true;
 			boardCells[randomRow + i][randomColumn].shipType = shipType;
-			//Board.update({row: randomRow + i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			//console.log("ship cell added at");
-			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	} else if(randomDirection == 3) { // Place westward for length of ship
 		for(var i = 0; i < shipLength; i++) {
 			boardCells[randomRow][randomColumn - i].isShip = true;
 			boardCells[randomRow][randomColumn - i].shipType = shipType;
-			//Board.update({row: randomRow, column: randomColumn - i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
-			//console.log("ship cell added at");
-			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	}
 	
+	// Put the generated ship in the current player's board
 	Board.update({forPlayer: Meteor.userId()}, {$set: {boardCells: boardCells}});
 }
 
@@ -466,7 +439,7 @@ function advanceToNextPlayer() {
 		// Check if the next player is in the game (hasn't had all their ships eliminated)
 		if(Players.findOne({playerNumber: activePlayerNumber}).inGame) {
 			foundNextPlayer = true;
-			console.log("found next player" + activePlayerNumber);
+			
 			// Check if the found next player is the same as the last player to fire, indicating the end of the game
 			if(activePlayerNumber == lastPlayerSequenceNumberToFire) {
 				console.log("GAME OVER");
@@ -499,14 +472,9 @@ if(Meteor.isServer) {
 	Meteor.publish("game", function () {
 			return Game.find();
 		});
-		
+	
+	// Publish to each player only their own board
 	Meteor.publish("board", function () {
-			/*return Board.find({
-				$or: [
-				  { shipOwner: this.userId },
-				  { shipOwner: "" }
-				]
-			  });*/
-			  return Board.find({forPlayer: this.userId});
+			return Board.find({forPlayer: this.userId});
 		});
 }

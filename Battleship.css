@@ -9,13 +9,18 @@ td {
 	height: 20px
 }
 
-.unhit-ship-cell {
+.own-ship-cell {
 	background-color: black;
 }
 
-.hit-ship-cell{
+.own-ship-hit-cell{
+	background-color: #B8B8B8;
+}
+
+.hit-shot-cell{
 	background-color: blue;
 }
-.missed-ship-cell{
+
+.missed-shot-cell{
 	background-color: red;
 }
