@@ -443,7 +443,8 @@ function advanceToNextPlayer() {
 			// Check if the found next player is the same as the last player to fire, indicating the end of the game
 			if(activePlayerNumber == lastPlayerSequenceNumberToFire) {
 				console.log("GAME OVER");
-				Game.update({field: "status"}, {$set: { value: "Game over", cssClass: "alert alert-primary"}});
+				Game.update({field: "status"}, {$set: { value: "Game over", cssClass: "alert alert-info"}});
+				Meteor.clearTimeout(turnTimeout); // Remove exiting time out; game is over
 				return;
 			}
 		}
