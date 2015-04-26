@@ -464,9 +464,9 @@ function advanceToNextPlayer() {
 		}
 		
 		// Check if the next player is in the game (hasn't had all their ships eliminated)
-		if(!Players.findOne({playerNumber: activePlayerNumber}).inGame) {
+		if(Players.findOne({playerNumber: activePlayerNumber}).inGame) {
 			foundNextPlayer = true;
-			
+			console.log("found next player" + activePlayerNumber);
 			// Check if the found next player is the same as the last player to fire, indicating the end of the game
 			if(activePlayerNumber == lastPlayerSequenceNumberToFire) {
 				console.log("GAME OVER");
