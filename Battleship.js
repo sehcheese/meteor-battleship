@@ -13,12 +13,16 @@ if (Meteor.isClient) {
 	
 	Tracker.autorun(function() {
 		if(boardHandle.ready()) {
-			for(var i = 0; i < numberRows; i++) {
-				for(var j = 0; j < numberColumns; j++) {
-					var cell = Board.findOne({row: i, column: j});
-					if(cell != null && cell.isShip) {
-						console.log("changeCSSTracker");
-						$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+			var playerBoardDocument = Board.findOne({forPlayer: Meteor.userId()});
+			if(playerBoardDocument != null) {
+				console.log("HHHEEERRREEE");
+				var cells = playerBoardDocument.boardCells;
+				for(var i = 0; i < numberRows; i++) {
+					for(var j = 0; j < numberColumns; j++) {
+						if(cells != null && cells[i][j].isShip) {
+							console.log("changeCSSTracker");
+							$('td[data-row="' + i + '"][data-col="' + j + '"]').addClass("unhit-ship-cell");
+						}
 					}
 				}
 			}
@@ -284,12 +288,10 @@ Meteor.methods({
 			// Make an empty board
 			var emptyCells = [];
 			for(var i = 0; i < numberRows; i++) {
+				emptyCells[i] = []
 				for(var j = 0; j < numberColumns; j++) {
-					emptyCells.push({
-						row: i,
-						column: j,
+					emptyCells[i].push({
 						isShip: false,
-						shipOwner: "",
 						shipType: "",
 						isHit: false
 					});
@@ -301,11 +303,11 @@ Meteor.methods({
 				boardCells: emptyCells
 			});
 			console.log("board created for player");
-			/*generateShip(2, "Destroyer", numberRows, numberColumns)
-			generateShip(3, "Submarine", numberRows, numberColumns)
-			generateShip(3, "Cruiser", numberRows, numberColumns)
-			generateShip(4, "Battleship", numberRows, numberColumns)
-			generateShip(5, "Carrier", numberRows, numberColumns)*/
+			generateShip(2, "Destroyer", numberRows, numberColumns);
+			generateShip(3, "Submarine", numberRows, numberColumns);
+			generateShip(3, "Cruiser", numberRows, numberColumns);
+			generateShip(4, "Battleship", numberRows, numberColumns);
+			generateShip(5, "Carrier", numberRows, numberColumns);
 		}
 		
 	}
@@ -340,8 +342,11 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	
 	// See if ship can exist in randomly selected spot
 	
+	// Get current board for this player
+	var boardCells = Board.findOne({forPlayer: Meteor.userId()}).boardCells;
+	
 	// Check if generated start spot is already on an existing ship
-	if(Board.findOne({row: randomRow, column: randomColumn}).isShip) {
+	if(boardCells[randomRow][randomColumn].isShip) {
 		generateShip(shipLength, shipType, numberRows, numberColumns);
 		return;
 	}
@@ -362,63 +367,79 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 	}
 	
 	// Check if would occupy spot of existing ship
-	if(randomDirection == 0) { // Check northward for length of ship 
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow - i, column: randomColumn}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
+	// Must check in every player's board, including one's own
+	var boards = Board.find().fetch();
+	for(var boardNumber = 0; boardNumber < boards.length; boardNumber++) {
+		var playerBoard = boards[boardNumber].boardCells; // The board we are currently checking
+		
+		if(randomDirection == 0) { // Check northward for length of ship 
+			for(var i = 1; i < shipLength; i++) {
+				if(playerBoard[randomRow - i][randomColumn].isShip) {
+					generateShip(shipLength, shipType, numberRows, numberColumns);
+					return;
+				}
 			}
-		}
-	} else if(randomDirection == 1) { // Check eastward for length of ship
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow, column: randomColumn + i}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
+		} else if(randomDirection == 1) { // Check eastward for length of ship
+			for(var i = 1; i < shipLength; i++) {
+				if(playerBoard[randomRow][randomColumn + i].isShip) {
+					generateShip(shipLength, shipType, numberRows, numberColumns);
+					return;
+				}
 			}
-		}
-	} else if(randomDirection == 2) { // Check southward for length of ship
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow + i, column: randomColumn}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
+		} else if(randomDirection == 2) { // Check southward for length of ship
+			for(var i = 1; i < shipLength; i++) {
+				if(playerBoard[randomRow + i][randomColumn].isShip) {
+					generateShip(shipLength, shipType, numberRows, numberColumns);
+					return;
+				}
 			}
-		}
-	} else if(randomDirection == 3) { // Check westward for length of ship
-		for(var i = 1; i < shipLength; i++) {
-			if(Board.findOne({row: randomRow, column: randomColumn - i}).isShip) {
-				generateShip(shipLength, shipType, numberRows, numberColumns);
-				return;
+		} else if(randomDirection == 3) { // Check westward for length of ship
+			for(var i = 1; i < shipLength; i++) {
+				if(playerBoard[randomRow][randomColumn - i].isShip) {
+					generateShip(shipLength, shipType, numberRows, numberColumns);
+					return;
+				}
 			}
 		}
 	}
 	
 	// We have now checked that the generated ship does not flow off the board or overlap with any other existing ships.
 	// Therefore, place it on the board.
-	if(randomDirection == 0) { // Check northward for length of ship 
+	if(randomDirection == 0) { // Place northward for length of ship 
 		for(var i = 0; i < shipLength; i++) {
-			Board.update({row: randomRow - i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			boardCells[randomRow - i][randomColumn].isShip = true;
+			boardCells[randomRow - i][randomColumn].shipType = shipType;
+			//Board.update({row: randomRow - i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
 			//console.log("ship cell added at")
 			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
-	} else if(randomDirection == 1) { // Check eastward for length of ship
+	} else if(randomDirection == 1) { // Place eastward for length of ship
 		for(var i = 0; i < shipLength; i++) {
-			Board.update({row: randomRow, column: randomColumn + i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			boardCells[randomRow][randomColumn + i].isShip = true;
+			boardCells[randomRow][randomColumn + i].shipType = shipType;
+			//Board.update({row: randomRow, column: randomColumn + i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
 			//console.log("ship cell added at")
 			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
-	} else if(randomDirection == 2) { // Check southward for length of ship
+	} else if(randomDirection == 2) { // Place southward for length of ship
 		for(var i = 0; i < shipLength; i++) {
-			Board.update({row: randomRow + i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			boardCells[randomRow + i][randomColumn].isShip = true;
+			boardCells[randomRow + i][randomColumn].shipType = shipType;
+			//Board.update({row: randomRow + i, column: randomColumn}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
 			//console.log("ship cell added at");
 			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
-	} else if(randomDirection == 3) { // Check westward for length of ship
+	} else if(randomDirection == 3) { // Place westward for length of ship
 		for(var i = 0; i < shipLength; i++) {
-			Board.update({row: randomRow, column: randomColumn - i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
+			boardCells[randomRow][randomColumn - i].isShip = true;
+			boardCells[randomRow][randomColumn - i].shipType = shipType;
+			//Board.update({row: randomRow, column: randomColumn - i}, {$set: {isShip: true, shipOwner: Meteor.userId(), shipType: shipType, isHit: false}});
 			//console.log("ship cell added at");
 			//console.log(Board.findOne({row: randomRow - i, column: randomColumn}));
 		}
 	}
+	
+	Board.update({forPlayer: Meteor.userId()}, {$set: {boardCells: boardCells}});
 }
 
 // Advance to the next turn
