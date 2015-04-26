@@ -267,7 +267,7 @@ Meteor.methods({
 				numberColumns: 20
 			});
 			
-			setUpBoard();
+			//setUpBoard();
 			
 			playerNumber = 0;
 			playerAdded = false;
@@ -281,11 +281,31 @@ Meteor.methods({
 			var numberRows = Game.findOne({field: "board"}).numberRows;
 			var numberColumns = Game.findOne({field: "board"}).numberColumns;
 			
-			generateShip(2, "Destroyer", numberRows, numberColumns)
+			// Make an empty board
+			var emptyCells = [];
+			for(var i = 0; i < numberRows; i++) {
+				for(var j = 0; j < numberColumns; j++) {
+					emptyCells.push({
+						row: i,
+						column: j,
+						isShip: false,
+						shipOwner: "",
+						shipType: "",
+						isHit: false
+					});
+				}
+			}
+			
+			Board.insert({
+				forPlayer: Meteor.userId(),
+				boardCells: emptyCells
+			});
+			console.log("board created for player");
+			/*generateShip(2, "Destroyer", numberRows, numberColumns)
 			generateShip(3, "Submarine", numberRows, numberColumns)
 			generateShip(3, "Cruiser", numberRows, numberColumns)
 			generateShip(4, "Battleship", numberRows, numberColumns)
-			generateShip(5, "Carrier", numberRows, numberColumns)
+			generateShip(5, "Carrier", numberRows, numberColumns)*/
 		}
 		
 	}
@@ -297,9 +317,10 @@ function setUpBoard() {
 	var numberColumns = Game.findOne({field: "board"}).numberColumns;
 	
 	// For each cell, add data fields
+	var cells = [];
 	for(var i = 0; i < numberRows; i++) {
 		for(var j = 0; j < numberColumns; j++) {
-			Board.insert({
+			cells.push({
 				row: i,
 				column: j,
 				isShip: false,
@@ -459,11 +480,12 @@ if(Meteor.isServer) {
 		});
 		
 	Meteor.publish("board", function () {
-			return Board.find({
+			/*return Board.find({
 				$or: [
 				  { shipOwner: this.userId },
 				  { shipOwner: "" }
 				]
-			  });
+			  });*/
+			  return Board.find({forPlayer: this.userId});
 		});
 }
