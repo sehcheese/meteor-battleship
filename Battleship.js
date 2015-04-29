@@ -155,7 +155,8 @@ var shotsFired = false;
 
 var initialized = false;
 
-// Methods called from the client side, but run on the server side for security
+// Methods called from the client side, but run on the server side for 
+var turnTimeout; // Variable for the timeout function
 Meteor.methods({
 	// Add a player
 	addPlayer: function() {
@@ -192,17 +193,20 @@ Meteor.methods({
 						// Give the first turn to the first player who joined
 						Players.update({playerNumber: 0}, {$set: { isTurn: true }});
 						activePlayerNumber = 0;
-						turnTimeout = Meteor.setTimeout(function() { // Timeout for first turn needs to be set up manually because there's not a preceding turn triggering it
+						// Commented out because for some reason this timeout isn't getting cancelled.
+						// As a consequence the first user has however long they like to kick off the game.
+						/*turnTimeout = Meteor.setTimeout(function() { // Timeout for first turn needs to be set up manually because there's not a preceding turn triggering it
 							if(!shotsFired) {
+								console.log("shotsfired " +shotsFired);
 								advanceToNextPlayer();
 							}
-						}, 15000); // 15 seconds max per turn (including for this, the first turn)
+						}, 15000); // 15 seconds max per turn (including for this, the first turn)*/
 						
 						// Indicate that the game has started
 						Game.update({field: "gameStarted"}, {$set: { value: true }});
 						Game.update({field: "status"}, {$set: { value: "Game in progress", cssClass: "alert alert-success"}});
 					}
-				}, 5000);
+				}, 15000);
 			}
 		}
 	},
@@ -437,7 +441,6 @@ function generateShip(shipLength, shipType, numberRows, numberColumns) {
 
 // Advance to the next turn
 // Players have a set time to fire a shot or they forfeit their turn.
-var turnTimeout; // Variable for the timeout function
 var lastPlayerSequenceNumberToFire;
 function advanceToNextPlayer() {
 	// Note player who last fired; if it becomes this player's turn again the game is over
@@ -466,7 +469,7 @@ function advanceToNextPlayer() {
 				Meteor.clearTimeout(turnTimeout); // Remove exiting time out; game is over
 				Meteor.setTimeout(function() {
 					reset();
-				}, 15000); // Reset game 15 seconds after it ends
+				}, 30000); // Reset game 15 seconds after it ends
 				return;
 			}
 		}
