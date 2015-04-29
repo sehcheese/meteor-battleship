@@ -34,6 +34,12 @@ if (Meteor.isClient) {
 						}
 					}
 				}
+			} else { // Dataset not available clear board (triggered at end of game, if triggered in middle, data not lost, can be redrawn)
+				for(var i = 0; i < numberRows; i++) {
+					for(var j = 0; j < numberColumns; j++) {
+						$('td[data-row="' + i + '"][data-col="' + j + '"]').removeClass();
+					}
+				}
 			}
 		}
 	});
@@ -88,7 +94,7 @@ if (Meteor.isClient) {
 		for(var i = 0; i < numberRows; i++) {
 			tableHtml += "<tr>";
 			for(var j = 0; j < numberColumns; j++) {
-				tableHtml += '<td data-row="' + i + '" data-col="' + j + '" class="fire-shot"></td>'
+				tableHtml += '<td data-row="' + i + '" data-col="' + j + '" class="fire-shot">' + i + j + '</td>'
 			}
 			tableHtml += "</tr>";
 		}
@@ -223,7 +229,7 @@ Meteor.methods({
 				if(boardCells[clickedRow][clickedColumn].isShip) { // There is a ship in clicked cell
 					hitAShip = true;
 					
-					if(!boardCells[clickedRow][clickedColumn].isHit) { // Ship not already hit, update as hit for player who owns the ship
+					if(!boardCells[clickedRow][clickedColumn].isHit) { // Ship not already hit, award points and update as hit for player who owns the ship
 						var currentScore = Players.findOne({ player: Meteor.userId() }).score;
 						Players.update({player: Meteor.userId()}, {$set: { score: currentScore + 1 }});
 						
@@ -231,7 +237,23 @@ Meteor.methods({
 						Board.update({forPlayer: boardOwner}, {$set: {boardCells: boardCells}});
 					}					
 					
-					// TODO CHeck if ship sunk; if player has no ships left, remove from rotation
+					// Make sure player should remain in game
+					// Should remain in game if still has at least one ship on board that isn't sunk
+					// If there is one square that isShip == true and isHit == false, the player is still in the game
+					// If not, remove the player from the game
+					var playerHitStillInGame = false;
+					for(var i = 0; i < boardCells.length; i++) {
+						for(var j = 0; j < boardCells[0].length; j++) {
+							if(boardCells[i][j].isShip && !boardCells[i][j].isHit) {
+								playerHitStillInGame = true;
+							}
+						}
+					}
+					
+					if(!playerHitStillInGame) {
+						Players.update({player: boardOwner}, {$set: {inGame: false}});
+					}
+					
 					
 					break; // Found that there was a ship hit, no need to keep looping
 				}
@@ -273,8 +295,6 @@ Meteor.methods({
 				numberRows: 20,
 				numberColumns: 20
 			});
-			
-			//setUpBoard();
 			
 			playerNumber = 0;
 			playerAdded = false;
@@ -442,9 +462,11 @@ function advanceToNextPlayer() {
 			
 			// Check if the found next player is the same as the last player to fire, indicating the end of the game
 			if(activePlayerNumber == lastPlayerSequenceNumberToFire) {
-				console.log("GAME OVER");
 				Game.update({field: "status"}, {$set: { value: "Game over", cssClass: "alert alert-info"}});
 				Meteor.clearTimeout(turnTimeout); // Remove exiting time out; game is over
+				Meteor.setTimeout(function() {
+					reset();
+				}, 15000); // Reset game 15 seconds after it ends
 				return;
 			}
 		}
@@ -462,6 +484,19 @@ function advanceToNextPlayer() {
 				}
 			}, 15000); // 15 seconds max per turn
 	}
+}
+
+function reset() {
+	// Clear players on startup
+	Players.remove({});
+	
+	// Clear game information
+	Game.remove({});
+	
+	Board.remove({});
+	
+	initialized = false;
+	Meteor.call("initialize");
 }
 
 // Publish access to datastores
